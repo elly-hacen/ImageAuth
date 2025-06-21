@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Image Forgery Detector</title>
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 transition-colors duration-500">
+
+  <!-- Top Navbar -->
+  <header class="bg-white shadow sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-2 md:gap-0">
+      <h1 class="text-2xl md:text-3xl font-extrabold text-purple-700 flex items-center gap-2">
+        🔍 Image Forgery Detector
+      </h1>
+      <span class="text-sm md:text-base text-gray-500">Powered by AI & Forensic Analysis</span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 py-10 space-y-10">
+
+    <!-- Message Alerts Placeholder -->
+    <div id="message" class="hidden max-w-3xl mx-auto px-6 py-4 rounded-lg text-white font-semibold"></div>
+
+    <!-- Upload Form -->
+    <section class="bg-white rounded-2xl shadow-md p-8 max-w-3xl mx-auto">
+      <h2 class="text-xl md:text-2xl font-bold text-gray-800 mb-6">Upload Image</h2>
+      <form method="post" enctype="multipart/form-data" class="space-y-6" id="uploadForm">
+        {% csrf_token %}
+        <div>
+          <label class="block mb-2 font-medium text-sm text-gray-700">Select an image file</label>
+          <div
+            class="border-2 border-dashed border-purple-300 bg-purple-50 rounded-xl p-6 text-center hover:bg-purple-100 transition cursor-pointer">
+            <svg class="mx-auto h-12 w-12 text-purple-500 mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 15a4 4 0 014-4h10a4 4 0 110 8H7a4 4 0 01-4-4z"></path>
+            </svg>
+            {{ form.image }}
+            <p class="text-xs text-purple-700 mt-2 select-none">JPG/PNG up to 5MB</p>
+          </div>
+        </div>
+        <div class="flex flex-col sm:flex-row justify-center gap-4">
+          <button id="analyzeBtn" type="submit"
+            class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg transition inline-flex items-center justify-center"
+          >
+            <span id="btnText">Analyze Image</span>
+            <svg id="loadingSpinner" class="hidden animate-spin h-5 w-5 ml-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+              aria-hidden="true">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+          </button>
+
+          <!-- Download Report Button -->
+          {% if report_url %}
+          <a href="{{ report_url }}" download
+            class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg transition inline-flex items-center justify-center"
+            id="downloadReportBtn"
+          >
+            Download Report
+          </a>
+          {% endif %}
+        </div>
+      </form>
+    </section>
+
+    <!-- Results Section -->
+    {% if original %}
+    <section class="space-y-12 max-w-7xl mx-auto">
+
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div
+          class="bg-white rounded-xl p-6 shadow-md text-center hover:shadow-xl hover:scale-105 transition-transform duration-300">
+          <h3 class="text-sm font-medium text-gray-600 mb-2" title="Prediction result">Prediction</h3>
+          <div class="text-2xl font-bold {% if prediction == 'Authentic' %}text-green-600{% else %}text-red-600{% endif %}">
+            {{ prediction }}
+          </div>
+        </div>
+        <div
+          class="bg-white rounded-xl p-6 shadow-md text-center hover:shadow-xl hover:scale-105 transition-transform duration-300">
+          <h3 class="text-sm font-medium text-gray-600 mb-2" title="Blurriness score of image">Blurriness Score</h3>
+          <div class="text-xl font-semibold {% if blur_score < 100 %}text-red-500{% else %}text-green-600{% endif %}">
+            {{ blur_score }}
+          </div>
+          <p class="text-sm text-gray-500" title="Blurriness indicator">
+            {% if blur_score < 100 %}⚠️ Blurry{% else %}✅ Sharp{% endif %}
+          </p>
+        </div>
+        <div
+          class="bg-white rounded-xl p-6 shadow-md text-center hover:shadow-xl hover:scale-105 transition-transform duration-300">
+          <h3 class="text-sm font-medium text-gray-600 mb-2" title="Histogram entropy measure">Histogram Entropy</h3>
+          <div class="text-xl font-semibold {% if entropy_score < 3.5 %}text-red-500{% else %}text-green-600{% endif %}">
+            {{ entropy_score }}
+          </div>
+          <p class="text-sm text-gray-500" title="Entropy quality indicator">
+            {% if entropy_score < 3.5 %}⚠️ Low variation{% else %}✅ Normal{% endif %}
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
+        <!-- Original Image -->
+        <div
+          class="bg-white p-4 rounded-xl shadow text-center hover:shadow-xl hover:scale-105 transition-transform duration-300 cursor-pointer"
+          onclick="openLightbox('{{ MEDIA_URL }}{{ original }}', 'Original Image')">
+          <h4 class="font-semibold text-sm mb-2">Original Image</h4>
+          <img src="{{ MEDIA_URL }}{{ original }}" alt="Original Image" class="rounded-lg shadow w-full object-contain" />
+        </div>
+
+        <!-- ELA Image -->
+        <div
+          class="bg-white p-4 rounded-xl shadow text-center hover:shadow-xl hover:scale-105 transition-transform duration-300 cursor-pointer"
+          onclick="openLightbox('{{ MEDIA_URL }}{{ ela_img }}', 'ELA Image')">
+          <h4 class="font-semibold text-sm mb-2">ELA Image</h4>
+          <img src="{{ MEDIA_URL }}{{ ela_img }}" alt="ELA Image" class="rounded-lg shadow w-full object-contain" />
+        </div>
+
+        <!-- ELA + Canny -->
+        <div
+          class="bg-white p-4 rounded-xl shadow text-center hover:shadow-xl hover:scale-105 transition-transform duration-300 cursor-pointer"
+          onclick="openLightbox('{{ MEDIA_URL }}{{ ela_canny }}', 'ELA + Canny Image')">
+          <h4 class="font-semibold text-sm mb-2">ELA + Canny</h4>
+          <img src="{{ MEDIA_URL }}{{ ela_canny }}" alt="ELA Canny" class="rounded-lg shadow w-full object-contain" />
+        </div>
+
+        <!-- Noise Analysis -->
+        <div
+          class="bg-white p-4 rounded-xl shadow text-center hover:shadow-xl hover:scale-105 transition-transform duration-300 cursor-pointer"
+          onclick="openLightbox('{{ MEDIA_URL }}{{ noise_img }}', 'Noise Analysis')">
+          <h4 class="font-semibold text-sm mb-2">Noise Analysis</h4>
+          <img src="{{ MEDIA_URL }}{{ noise_img }}" alt="Noise" class="rounded-lg shadow w-full object-contain" />
+        </div>
+
+        <!-- Heatmap of Pixel Differences -->
+        <div
+          class="bg-white p-4 rounded-xl shadow text-center hover:shadow-xl hover:scale-105 transition-transform duration-300 cursor-pointer"
+          onclick="openLightbox('{{ heatmap_url }}', 'Heatmap of Pixel Differences')">
+          <h4 class="font-semibold text-sm mb-2">Heatmap of Pixel Differences</h4>
+          <img src="{{ heatmap_url }}" alt="Heatmap" class="rounded-lg shadow w-full object-contain max-h-[500px]" />
+        </div>
+      </div>
+
+      <!-- Metadata Table -->
+      <div class="overflow-x-auto max-w-4xl mx-auto mt-8">
+        <h3 class="text-xl font-semibold mb-4 text-center text-gray-800">Image Metadata</h3>
+        <table class="min-w-full table-auto border-collapse border border-gray-300 rounded-lg overflow-hidden">
+          <thead>
+            <tr class="bg-purple-100">
+              <th class="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-purple-800">Tag</th>
+              <th class="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-purple-800">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for tag, value in metadata.items %}
+            <tr class="border-t border-gray-200 even:bg-gray-50 hover:bg-purple-50 transition-colors">
+              <td class="px-4 py-2 font-medium text-gray-700 whitespace-nowrap">{{ tag }}</td>
+              <td class="px-4 py-2 whitespace-pre-wrap text-gray-800">{{ value }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    </section>
+    {% endif %}
+
+  </main>
+
+  <!-- Lightbox Modal -->
+  <div id="lightbox" class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-6 hidden z-50" aria-modal="true" role="dialog" aria-label="Image Preview">
+    <div class="relative max-w-4xl w-full max-h-full">
+      <button id="lightboxClose" aria-label="Close Image Preview"
+        class="absolute top-2 right-2 text-white text-3xl font-bold hover:text-purple-400 transition">×</button>
+      <img id="lightboxImg" src="" alt="" class="rounded-lg max-h-[90vh] w-auto mx-auto" />
+      <p id="lightboxCaption" class="mt-2 text-center text-white text-lg font-semibold"></p>
+    </div>
+  </div>
+
+  <script>
+    // Loader spinner on analyze button
+    const form = document.getElementById('uploadForm');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const btnText = document.getElementById('btnText');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const messageBox = document.getElementById('message');
+
+    form.addEventListener('submit', () => {
+      analyzeBtn.disabled = true;
+      btnText.textContent = 'Analyzing...';
+      loadingSpinner.classList.remove('hidden');
+      // Clear previous message
+      messageBox.classList.add('hidden');
+      messageBox.textContent = '';
+    });
+
+    // Lightbox logic
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightboxImg');
+    const lightboxCaption = document.getElementById('lightboxCaption');
+    const lightboxClose = document.getElementById('lightboxClose');
+
+    function openLightbox(src, caption) {
+      lightboxImg.src = src;
+      lightboxCaption.textContent = caption;
+      lightbox.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    lightboxClose.addEventListener('click', () => {
+      lightbox.classList.add('hidden');
+      lightboxImg.src = '';
+      lightboxCaption.textContent = '';
+      document.body.style.overflow = '';
+    });
+
+    // Close lightbox on background click
+    lightbox.addEventListener('click', (e) => {
+      if (e.target === lightbox) {
+        lightboxClose.click();
+      }
+    });
+
+    // Escape key closes lightbox
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !lightbox.classList.contains('hidden')) {
+        lightboxClose.click();
+      }
+    });
+  </script>
+
+</body>
+</html>
